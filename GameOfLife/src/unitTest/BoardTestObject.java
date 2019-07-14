@@ -28,11 +28,12 @@ public class BoardTestObject extends Board{
 	}
 	
 	public Cell[][] copyGrid(Cell[][] currentGrid, Cell[][] newGrid){
-		return super.copyToNextGrid(currentGrid, newGrid);
+		//return super.copyToNextGrid(currentGrid, newGrid);
+		return null;
 	}
 	
 	public int calculateLivingCells() {
-		return super.calculateTotalLivingCells();
+		return super.getTotalLivingCells();
 	}
 	
 	public Cell searchForCell(ArrayList<Cell> cells, double x, double y) {

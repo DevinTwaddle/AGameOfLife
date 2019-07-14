@@ -1,6 +1,7 @@
 package game;
 
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
@@ -8,39 +9,42 @@ import java.awt.event.KeyListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionListener;
+import java.util.HashSet;
 
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JSlider;
 
 public class GameOfLife extends JFrame {
-	
-	private final String TITLE;
-	private final int WIDTH, HEIGHT;
 
+	//TODO: Need to research the use and implementation of layouts, and clean up the interface currently present.
+	
 	private Board mBoard;
-	private JButton mEvolveBtn, mAutoEvolveBtn;
-	private JLabel mIterationLbl, mLivingCellsLbl;
+	private JButton mEvolveBtn, mAutoEvolveBtn, mCentreCamera;
+	private JLabel mIterationLbl, mLivingCellsLbl, mCameraPosLbl, mSpeedLbl;
+	private JSlider mSpeedSlider;
 	private boolean mAutoLoop, mDragging, mStateOfSelectedCell;
+	private final HashSet<Integer> pressedKeys = new HashSet<>();
 
 	// =================================================================
 	// CONSTRUCTORS / MAIN METHOD
 	// =================================================================
 	public GameOfLife(String title, int width, int height) {
-		TITLE = title;
-		WIDTH = width;
-		HEIGHT = height;
+		this.setTitle(title);
+		this.setSize(width, height);
 	}
-	
+
 	public GameOfLife() {
 		this("A Game Of Life", 1000, 1000);
 	}
 
 	// Main method used to create an instance of the game.
 	public void createGame() {
-		createFrame(TITLE, WIDTH, HEIGHT);
+		createFrame(this.getTitle(), getWidth(), getHeight());
 		instantiateComponents();
 		initialiseComponents();
+		addComponentsToFrame();
 		createButtonListeners();
 		createFrameListeners();
 		mBoard.startGame();
@@ -53,31 +57,55 @@ public class GameOfLife extends JFrame {
 
 	// Initialise Variables with new instances.
 	private void instantiateComponents() {
-		int boardWidth = 900, boardHeight = 900;
+		int boardWidth = 900, boardHeight = 900, minSpeed = 0, maxSpeed = 50, defaultSpeed = 1;
 		double boardOffset = 40, cellOffset = 1, cellResolution = 20;
+
 		mEvolveBtn = new JButton();
 		mAutoEvolveBtn = new JButton();
+		mCentreCamera = new JButton();
 		mIterationLbl = new JLabel();
 		mLivingCellsLbl = new JLabel();
+		mCameraPosLbl = new JLabel();
+		mSpeedLbl = new JLabel();
+		mSpeedSlider = new JSlider(JSlider.HORIZONTAL, minSpeed, maxSpeed, defaultSpeed);
 		mBoard = new Board(boardWidth, boardHeight, boardOffset, cellOffset, cellResolution);
 	}
 
 	// Assigns specific values to the initialised components.
 	private void initialiseComponents() {
+
 		mEvolveBtn.setText("Evolve Once");
 		mAutoEvolveBtn.setText("Auto Evolve");
+		mCentreCamera.setText("Centre Camera");
 
 		mEvolveBtn.setFocusable(false);
 		mAutoEvolveBtn.setFocusable(false);
+		mCentreCamera.setFocusable(false);
+		mSpeedSlider.setFocusable(false);
 
 		mIterationLbl.setForeground(Color.ORANGE);
 		mLivingCellsLbl.setForeground(Color.ORANGE);
+		mCameraPosLbl.setForeground(Color.ORANGE);
+		mSpeedLbl.setForeground(Color.ORANGE);
 
+		mSpeedSlider.setPaintTicks(true);
+		mSpeedSlider.setPaintLabels(true);
+		mSpeedSlider.setSnapToTicks(true);
+		mSpeedSlider.setMinorTickSpacing(1);
+		mSpeedSlider.setMajorTickSpacing(10);
+
+	}
+
+	private void addComponentsToFrame() {
 		setContentPane(mBoard);
 		add(mEvolveBtn);
 		add(mAutoEvolveBtn);
+		add(mCentreCamera);
 		add(mIterationLbl);
 		add(mLivingCellsLbl);
+		add(mCameraPosLbl);
+		add(mSpeedLbl);
+		add(mSpeedSlider);
 	}
 
 	// Assigns desired values to this frame.
@@ -89,6 +117,7 @@ public class GameOfLife extends JFrame {
 		setResizable(true);
 		setLocationRelativeTo(null);
 		setBackground(Color.black);
+		setAlwaysOnTop(false);
 	}
 
 	// =================================================================
@@ -100,7 +129,7 @@ public class GameOfLife extends JFrame {
 		mEvolveBtn.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent arg0) {
-				evolveGameBoard();
+				mBoard.processNextEvolution();
 			}
 		});
 
@@ -110,14 +139,20 @@ public class GameOfLife extends JFrame {
 			public void actionPerformed(ActionEvent e) {
 				// Invert selection.
 				mAutoLoop = !mAutoLoop;
+
 				// Update display to represent selection.
-				if (mAutoLoop) {
-					mAutoEvolveBtn.setBackground(Color.DARK_GRAY);
-					mAutoEvolveBtn.setForeground(Color.WHITE);
-				} else {
-					mAutoEvolveBtn.setBackground(Color.WHITE);
-					mAutoEvolveBtn.setForeground(Color.BLACK);
-				}
+				if (mAutoLoop)
+					setButtonActive(mAutoEvolveBtn);
+				else
+					setButtonInActive(mAutoEvolveBtn);
+			}
+		});
+
+		mCentreCamera.addActionListener(new ActionListener() {
+
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				mBoard.returnCameraToOrigin();
 			}
 		});
 	}
@@ -141,6 +176,7 @@ public class GameOfLife extends JFrame {
 			public void mousePressed(MouseEvent e) {
 				updateSelectedCell(e);
 				mDragging = true;
+				mBoard.createVisibleGrid();
 			}
 
 			@Override
@@ -156,36 +192,69 @@ public class GameOfLife extends JFrame {
 
 			@Override
 			public void keyReleased(KeyEvent e) {
+				pressedKeys.remove(e.getKeyCode());
 			}
 
 			@Override
 			public void keyPressed(KeyEvent e) {
-				GameCamera camera = mBoard.getCamera();
-				double cameraX = camera.getX(), cameraY = camera.getY(),
-						resolution = mBoard.getResolution();
-
-				switch (e.getKeyCode()) {
-				case KeyEvent.VK_W:
-					camera.setCameraPosition(cameraX, cameraY + resolution);
-					break;
-
-				case KeyEvent.VK_S:
-					camera.setCameraPosition(cameraX, cameraY - resolution);
-					break;
-
-				case KeyEvent.VK_A:
-					camera.setCameraPosition(cameraX + resolution, cameraY);
-					break;
-
-				case KeyEvent.VK_D:
-					camera.setCameraPosition(cameraX - resolution, cameraY);
-					break;
-
-				}
-				mBoard.drawGrid();
+				pressedKeys.add(e.getKeyCode());
+				processPressedKeys(pressedKeys);
 			}
 		});
 	}
+	
+	// =================================================================
+	// KEY INPUT
+	// =================================================================
+
+	//
+	private void processPressedKeys(HashSet<Integer> keys) {
+		int speed = mSpeedSlider.getValue();
+
+		for (int key : keys) {
+			Movement movement = determineSelectedKey(key);
+			if (movement != null)
+				mBoard.moveCamera(movement, speed);
+		}
+	}
+	
+	private Movement determineSelectedKey(int key) {
+		Movement movement = null;
+		switch (key) {
+		case KeyEvent.VK_W:
+			movement = Movement.UP;
+			break;
+		case KeyEvent.VK_UP:
+			movement = Movement.UP;
+			break;
+		case KeyEvent.VK_S:
+			movement = Movement.DOWN;
+			break;
+		case KeyEvent.VK_DOWN:
+			movement = Movement.DOWN;
+			break;
+		case KeyEvent.VK_D:
+			movement = Movement.RIGHT;
+			break;
+		case KeyEvent.VK_RIGHT:
+			movement = Movement.RIGHT;
+			break;
+		case KeyEvent.VK_A:
+			movement = Movement.LEFT;
+			break;
+		case KeyEvent.VK_LEFT:
+			movement = Movement.LEFT;
+			break;
+		case KeyEvent.VK_SPACE:
+			mBoard.returnCameraToOrigin();
+			break;
+		}
+		return movement;
+	}
+	
+	// =================================================================
+	// CELL SELECTION
+	// =================================================================
 
 	// Determines selected Cell, and inverts living status if appropriate.
 	private void updateSelectedCell(MouseEvent e) {
@@ -194,9 +263,9 @@ public class GameOfLife extends JFrame {
 			return;
 
 		// Store status of first selected cell.
-		if (!mDragging) 
+		if (!mDragging)
 			mStateOfSelectedCell = cell.isLiving();
-		
+
 		// If cell matches that of the initial cell, then also convert it.
 		if (cell.isLiving() == mStateOfSelectedCell)
 			cell.invertLivingState();
@@ -209,34 +278,45 @@ public class GameOfLife extends JFrame {
 	}
 
 	// =================================================================
-	// UPDATE
+	// UPDATE BUTTON DISPLAY
 	// =================================================================
 
-	private int i = 0;
-	
+	private void setButtonActive(JButton btn) {
+		btn.setBackground(Color.DARK_GRAY);
+		btn.setForeground(Color.WHITE);
+	}
+
+	private void setButtonInActive(JButton btn) {
+		btn.setBackground(Color.WHITE);
+		btn.setForeground(Color.BLACK);
+	}
+
+	// =================================================================
+	// UPDATE
+	// =================================================================
+	int i = 0;
+
 	public void update() {
 		// Update the frame.
 		super.repaint();
 		super.validate();
-
-		// While autoLoop is active, wait for some time, before calling the evolve method.
-		if (mAutoLoop && i > 1000 * 1000) {
-			evolveGameBoard();
-			i = 0;
-		} else
-			i++;
-
-	}
-
-	// Collective methods to remove repetition.
-	private void evolveGameBoard() {
-		mBoard.iterateEvolution();
 		updateLabels();
+
+		// While autoLoop is active, wait for some time, before calling the evolve
+		// method.
+		if (mAutoLoop && i >= 5) {
+			mBoard.processNextEvolution();
+			i = 0;
+		}
+		i++;
 	}
 
 	private void updateLabels() {
 		mIterationLbl.setText(" | Iteration: " + mBoard.getIteration() + " | ");
-		mLivingCellsLbl.setText(" | No. Of living cells: " + mBoard.calculateTotalLivingCells() + " | ");
+		mLivingCellsLbl.setText(" | No. Of living cells: " + mBoard.getTotalLivingCells() + " | ");
+		Dimension cameraPosition = mBoard.calculateCameraPosition();
+		mCameraPosLbl
+				.setText(" | Camera Position: X: " + cameraPosition.getWidth() + ", Y: " + cameraPosition.getHeight());
+		mSpeedLbl.setText(" | Move by " + mSpeedSlider.getValue() + " Cell(s) | ");
 	}
-
 }
