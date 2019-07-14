@@ -144,7 +144,7 @@ class BoardTest {
 		grid[1][2].invertLivingState();
 		grid[1][3].invertLivingState();
 		
-		board.iterateEvolution();
+		board.processNextEvolution();
 		grid = board.getCellGrid();
 		
 		assertTrue(grid[0][2].isLiving());
