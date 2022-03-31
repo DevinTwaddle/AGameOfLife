@@ -222,18 +222,26 @@ public class GameOfLife extends JFrame {
 		Movement movement = null;
 		switch (key) {
 		case KeyEvent.VK_W:
+			movement = Movement.UP;
+			break;
 		case KeyEvent.VK_UP:
 			movement = Movement.UP;
 			break;
 		case KeyEvent.VK_S:
+			movement = Movement.DOWN;
+			break;
 		case KeyEvent.VK_DOWN:
 			movement = Movement.DOWN;
 			break;
 		case KeyEvent.VK_D:
+			movement = Movement.RIGHT;
+			break;
 		case KeyEvent.VK_RIGHT:
-		movement = Movement.RIGHT;
-		break;
+			movement = Movement.RIGHT;
+			break;
 		case KeyEvent.VK_A:
+			movement = Movement.LEFT;
+			break;
 		case KeyEvent.VK_LEFT:
 			movement = Movement.LEFT;
 			break;
